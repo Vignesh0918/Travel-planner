@@ -1,38 +1,34 @@
 import os
+import sys
+from pathlib import Path
+
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from langchain.schema import SystemMessage, HumanMessage
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.config.settings import Settings
+from src.llm.factory import build_llm_provider
+from src.travel_planner.service import plan_trip
+
 
 # Load API key from .env
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-def plan_trip(destination, days, budget):
-    llm = ChatOpenAI(model="gpt-4o",temperature=0.7)
 
-    system_prompt = (
-        "You are a smart travel planner who creates travel itineraries. "
-        "Your response should include places to visit, food, travel tips, and estimated budget breakdown."
-    )
+def run_travel_planner(destination: str, days: str, budget: str) -> str:
+    os.environ.setdefault("LLM_PROVIDER", "OPENAI")
+    settings = Settings.from_env()
+    provider = build_llm_provider(settings)
+    return plan_trip(provider, destination, days, budget)
 
-    user_prompt = (
-        f"Plan a {days}-day trip to {destination} under ₹{budget}. "
-        f"Include best places to visit, food options, stay, and cost breakdown."
-    )
-
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt)
-    ]
-
-    response = llm(messages)
-    return response.content
 
 # For command-line testing
 if __name__ == "__main__":
     dest = input("Enter destination: ")
     days = input("Enter number of days: ")
     budget = input("Enter total budget in ₹: ")
-    itinerary = plan_trip(dest, days, budget)
+    itinerary = run_travel_planner(dest, days, budget)
     print("\nYour AI-generated Travel Plan:\n")
     print(itinerary)

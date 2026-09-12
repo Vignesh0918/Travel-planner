@@ -1,178 +1,190 @@
-#Travel-planner
-# 🗺️ AI Travel Planner using GPT-4o | LangChain + OpenAI
+# Travel Planner + AI GitHub Issue Resolution System
 
-Plan your dream trip in seconds using the power of **OpenAI GPT-4o** and **LangChain**. This AI travel assistant takes a **destination**, **number of days**, and **budget**, then generates a **customized travel itinerary** with recommendations for places to visit, food to try, stay options, and a complete **budget breakdown**.
+This repository now contains:
 
-Ideal for students, backpackers, families, or solo travelers looking to explore smartly without spending hours on research.
-
----
-
-## 📸 Demo
-
-> _Add a screenshot or demo GIF here showing the terminal in action._
+1. A legacy AI travel planner CLI.
+2. A production-oriented, three-agent GitHub Issue Resolution workflow with a mandatory developer approval gate.
 
 ---
 
-## ✨ Key Features
+## Architecture Overview
 
-- 🧭 **AI-generated Travel Itineraries** tailored to your preferences.
-- 🗺️ Includes **places to visit**, **things to do**, and **cultural tips**.
-- 🍱 Suggests **local foods** and must-try cuisines.
-- 🛏️ Recommends **accommodation options**.
-- 💸 Provides a **realistic cost breakdown** (travel, stay, food, etc.).
-- 🔁 Fully interactive via **command line interface**.
-- 🤖 Built using **LangChain + GPT-4o** for natural, smart planning.
+```text
+GitHub Issue
+   |
+   v
+[Agent 1: Issue Detection]
+   |
+   v
+[Agent 2: Issue Validation]
+   |
+   v
+[Developer Approval Gate] --reject--> [REJECTED]
+   |
+  approve
+   v
+[Agent 3: Issue Resolution]
+   |
+   v
+Code changes -> tests -> PR creation -> manual developer merge
+```
+
+### Core modules
+
+- `src/agents/`
+  - `issue_detector.py` (read-only issue ingestion + dedupe)
+  - `issue_validator.py` (analysis-only validation)
+  - `issue_resolver.py` (approval-guarded implementation flow)
+  - `executors.py` (local git/test/PR integration points)
+- `src/orchestration/`
+  - `state_machine.py` (allowed transitions)
+  - `state_store.py` (SQLite durable state + approvals)
+  - `approval_gate.py` (developer approval logic)
+  - `workflow.py` (end-to-end orchestration)
+- `src/github/`
+  - `client.py` (GitHub API client)
+  - `issues.py` (issue read/search/comment operations)
+  - `pull_requests.py` (branch + PR operations)
+- `src/llm/`
+  - `provider.py` (provider abstraction)
+  - `factory.py` (env-driven provider selection)
+- `src/mcp/`
+  - `tools_read.py` (read-only toolset)
+  - `tools_write.py` (write toolset with approval checks)
+  - `server.py` (tool dispatch)
+- `src/models/schemas.py` (typed payloads and reports)
+- `src/notifications/developer_notify.py` (approval notifications)
+- `src/main.py` (workflow CLI)
 
 ---
 
-## 🧠 Powered By
+## Agent Responsibilities
 
-| Tool/Library    | Purpose                             |
-|----------------|-------------------------------------|
-| `LangChain`     | Manage prompts and LLM chains      |
-| `OpenAI GPT-4o` | Generate high-quality itinerary     |
-| `python-dotenv` | Securely load API keys             |
-| `Python`        | Application scripting              |
+### Agent 1 — Issue Detection Agent
+- Detects new issues.
+- Builds structured `IssuePayload`.
+- Prevents duplicate processing.
+- Does **not** modify code or create PRs.
+
+### Agent 2 — Issue Validation Agent
+- Reads issue details/comments.
+- Inspects repository code.
+- Flags duplicates/reproducibility.
+- Produces structured `ValidationReport`.
+- Analysis-only (no code changes).
+
+### Developer Approval Gate
+- Receives validation summary.
+- Explicit approve/reject decision.
+- Resolver cannot execute write actions unless approved.
+
+### Agent 3 — Issue Resolution Agent
+- Verifies approval first.
+- Creates issue branch.
+- Applies minimal targeted changes (executor integration point).
+- Runs tests.
+- Creates PR (or returns manual PR requirement if not configured).
 
 ---
 
-## 📁 Project Structure
+## Workflow States
 
-.
-├── travel_planner.py # Main Python script
-├── .env # Contains OpenAI API key (not shared)
-├── requirements.txt # Python dependencies
-└── README.md # Documentation file
+`NEW -> DETECTED -> VALIDATING -> VALID -> WAITING_FOR_APPROVAL -> APPROVED -> IMPLEMENTING -> TESTING -> READY_FOR_REVIEW -> PR_CREATED -> MERGED`
 
-yaml
-Copy
-Edit
+Failure states:
+`INVALID, DUPLICATE, REJECTED, IMPLEMENTATION_FAILED, TEST_FAILED, NEEDS_HUMAN_REVIEW`
 
 ---
 
-## 🔧 Setup Instructions
+## Environment Variables
 
-### 1. Clone the Repository
+Required:
+
+- `GITHUB_REPOSITORY` (`owner/repo`)
+- `GITHUB_TOKEN` (for GitHub API calls)
+- `LLM_PROVIDER` (default: `OPENAI`)
+- `LLM_MODEL` (default: `gpt-4o`)
+- `OPENAI_API_KEY` (required when `LLM_PROVIDER=OPENAI`)
+- `STATE_DB_PATH` (default: `state/workflow_state.db`)
+- `LOG_LEVEL` (default: `INFO`)
+- `APPROVAL_CHANNEL` (default: `stdout`)
+
+Optional:
+
+- `MAX_RETRIES`
+- `GITHUB_API_BASE_URL`
+
+---
+
+## Security Model
+
+- No API keys are hardcoded.
+- Secrets are loaded from environment.
+- Structured logs are sanitized for sensitive fields.
+- Agent 3 write actions are blocked unless explicit approval exists.
+- Pull requests are never auto-merged.
+- Permissions should follow least privilege:
+  - Agent 1/2: read-focused scopes
+  - Agent 3: write scopes only after approval
+
+---
+
+## MCP Tooling Model
+
+- Read tools (`src/mcp/tools_read.py`) expose issue discovery and inspection operations.
+- Write tools (`src/mcp/tools_write.py`) enforce approval checks before branch/PR operations.
+- `src/mcp/server.py` provides modular dispatch.
+
+---
+
+## Installation
 
 ```bash
-git clone https://github.com/yourusername/ai-travel-planner.git
-cd ai-travel-planner
-2. Create and Activate a Virtual Environment (optional)
-bash
-Copy
-Edit
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-3. Install Dependencies
-bash
-Copy
-Edit
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-4. Add OpenAI API Key
-Create a .env file in the project root and add your key like this:
+```
 
-env
-Copy
-Edit
-OPENAI_API_KEY=your_openai_api_key_here
-▶️ How to Use
-Run the script from your terminal:
+---
 
-bash
-Copy
-Edit
-python travel_planner.py
-You will be prompted for:
+## Running the workflow
 
-✈️ Destination (e.g., Goa)
+```bash
+python -m src.main process --issue 123
+python -m src.main approve --issue 123 --by yourname --reason "validated"
+python -m src.main resume --issue 123
+python -m src.main reject --issue 123 --by yourname --reason "not reproducible"
+```
 
-🗓️ Number of Days (e.g., 3)
+---
 
-💰 Total Budget (₹) (e.g., 15000)
+## Testing
 
-The AI will then generate a full itinerary plan in seconds.
+Run unit/integration-style workflow tests with mocks:
 
-✅ Example
-Input:
+```bash
+python -m pytest -q
+```
 
-text
-Copy
-Edit
-Enter destination: Jaipur
-Enter number of days: 3
-Enter total budget in ₹: 10000
-Output:
+Test coverage includes:
+- new issue detection
+- duplicate detection
+- valid/invalid validation
+- approval/rejection paths
+- resolver blocked without approval
+- resolver after approval
+- test failure handling
+- implementation failure handling
+- MCP write gating
+- state persistence
+- LLM failure fallback
 
-text
-Copy
-Edit
-Your AI-generated Travel Plan:
+---
 
-Day 1:
-- Arrival and check-in at a budget hotel in Pink City (~₹1,000)
-- Visit Hawa Mahal, City Palace, and local bazaars
-- Dinner at Laxmi Mishtan Bhandar (~₹300)
+## Legacy Travel Planner CLI
 
-Day 2:
-- Amber Fort, Jaigarh Fort, Elephant ride (~₹1,500)
-- Lunch at Rawat Kachori (~₹250)
-- Evening at Nahargarh Fort sunset point
+The original CLI remains available at:
 
-Day 3:
-- Shopping at Johari Bazaar
-- Try Rajasthani Thali at Chokhi Dhani (~₹600)
+- `travel planner/travel.py`
 
-Total Estimated Budget:
-- Stay: ₹3,000
-- Food: ₹1,500
-- Travel: ₹2,000
-- Entry & Activities: ₹2,000
-- Misc: ₹1,500
-📌 Requirements
-Make sure these packages are installed (in requirements.txt):
-
-nginx
-Copy
-Edit
-langchain
-langchain-openai
-openai
-python-dotenv
-To install manually:
-
-bash
-Copy
-Edit
-pip install langchain langchain-openai openai python-dotenv
-🚀 Deployment Ideas
-While this is a command-line tool now, you can easily extend it:
-
-🎛️ Add a web UI using Streamlit or Gradio
-
-🌐 Deploy as a REST API using FastAPI
-
-📲 Turn it into a mobile app using Flutter + Python backend
-
-☁️ Deploy on Streamlit Cloud, Render, or HuggingFace Spaces
-
-🛣️ Roadmap
- Add international trip planning support
-
- Include live weather data and best season info
-
- Add QR code export of itinerary
-
- Generate PDF itinerary
-
- Allow custom preferences (e.g., beach vs. adventure vs. temples)
-
-🛡️ License
-This project is licensed under the MIT License. See LICENSE for details.
-
-🙋‍♀️ Author
-Vicky
-💡 AI Builder | 🏃‍♀️ Athlete | 💻 MCA Student
-📬 Email: your-email@example.com
-🔗 GitHub: @yourusername
-🔗 LinkedIn: linkedin.com/in/yourname
-
+It now uses the shared LLM provider abstraction in `src/llm/`.
