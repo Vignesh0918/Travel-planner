@@ -3,9 +3,9 @@ from __future__ import annotations
 from src.models.schemas import WorkflowState
 
 VALID_TRANSITIONS: dict[WorkflowState, set[WorkflowState]] = {
-    WorkflowState.NEW: {WorkflowState.DETECTED, WorkflowState.INVALID, WorkflowState.DUPLICATE},
-    WorkflowState.DETECTED: {WorkflowState.VALIDATING, WorkflowState.INVALID, WorkflowState.DUPLICATE},
-    WorkflowState.VALIDATING: {WorkflowState.VALID, WorkflowState.INVALID, WorkflowState.DUPLICATE},
+    WorkflowState.NEW: {WorkflowState.DETECTED, WorkflowState.INVALID, WorkflowState.DUPLICATE, WorkflowState.NEEDS_HUMAN_REVIEW},
+    WorkflowState.DETECTED: {WorkflowState.VALIDATING, WorkflowState.INVALID, WorkflowState.DUPLICATE, WorkflowState.NEEDS_HUMAN_REVIEW},
+    WorkflowState.VALIDATING: {WorkflowState.VALID, WorkflowState.INVALID, WorkflowState.DUPLICATE, WorkflowState.NEEDS_HUMAN_REVIEW},
     WorkflowState.VALID: {WorkflowState.WAITING_FOR_APPROVAL},
     WorkflowState.WAITING_FOR_APPROVAL: {WorkflowState.APPROVED, WorkflowState.REJECTED},
     WorkflowState.APPROVED: {WorkflowState.IMPLEMENTING},

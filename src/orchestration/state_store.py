@@ -107,7 +107,13 @@ class StateStore:
     ) -> WorkflowRecord:
         current = self.get_record(repository, issue_number, workflow_version)
         if current is None:
-            if target not in {WorkflowState.NEW, WorkflowState.DETECTED, WorkflowState.INVALID, WorkflowState.DUPLICATE}:
+            if target not in {
+                WorkflowState.NEW,
+                WorkflowState.DETECTED,
+                WorkflowState.INVALID,
+                WorkflowState.DUPLICATE,
+                WorkflowState.NEEDS_HUMAN_REVIEW,
+            }:
                 raise ValueError("Missing initial state")
             current_state = WorkflowState.NEW
         else:
